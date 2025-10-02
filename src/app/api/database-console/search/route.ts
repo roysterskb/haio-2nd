@@ -4,14 +4,14 @@ import { rooms, devices, weatherSettings, appearanceSettings, databaseSettings, 
 import { eq, like, and, or, sql } from 'drizzle-orm';
 
 // Define available tables and their searchable text columns
-const tables: Record<string, { table: any; textColumns: string[] }> = {
+const SEARCHABLE_TABLES = {
   rooms: { table: rooms, textColumns: ['name'] },
   devices: { table: devices, textColumns: ['name', 'type'] },
-  weather_settings: { table: weatherSettings, textColumns: ['provider', 'city', 'country', 'zip'] },
+  weather_settings: { table: weatherSettings, textColumns: ['provider', 'units', 'city', 'country', 'zip'] },
   appearance_settings: { table: appearanceSettings, textColumns: ['mode', 'screen_size', 'background_color'] },
   database_settings: { table: databaseSettings, textColumns: ['local_path', 'cloud_path', 'preset'] },
   audio_levels: { table: audioLevels, textColumns: [] },
-  backups: { table: backups, textColumns: [] },
+  backups: { table: backups, textColumns: [] }
 };
 
 export async function GET(request: NextRequest) {
@@ -39,14 +39,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Validate table exists and is accessible
-    if (!tables[tableName as keyof typeof tables]) {
+    if (!SEARCHABLE_TABLES[tableName as keyof typeof SEARCHABLE_TABLES]) {
       return NextResponse.json({ 
         error: "Table not found or not accessible",
         code: "TABLE_NOT_FOUND" 
       }, { status: 404 });
     }
 
-    const tableConfig = tables[tableName as keyof typeof tables];
+    const tableConfig = SEARCHABLE_TABLES[tableName as keyof typeof SEARCHABLE_TABLES];
     const { table, textColumns } = tableConfig;
 
     // Determine columns to search

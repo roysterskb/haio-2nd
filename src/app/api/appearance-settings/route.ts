@@ -16,10 +16,7 @@ export async function GET(request: NextRequest) {
         screenSize: 'desktop',
         width: 1200,
         height: 800,
-        backgroundColor: '#ffffff',
-        primaryColor: '#3b82f6',
-        cardPlaceholderColor: '#9ca3af',
-        themePreset: 'default'
+        backgroundColor: '#ffffff'
       });
     }
 
@@ -35,16 +32,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const requestBody = await request.json();
-    const { 
-      mode, 
-      screenSize, 
-      width, 
-      height, 
-      backgroundColor, 
-      primaryColor,
-      cardPlaceholderColor,
-      themePreset
-    } = requestBody;
+    const { mode, screenSize, width, height, backgroundColor } = requestBody;
 
     // Validate mode
     if (mode !== undefined && !['auto', 'manual'].includes(mode)) {
@@ -78,27 +66,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate hex colors
-    const hexFields = ['backgroundColor', 'primaryColor', 'cardPlaceholderColor'];
-    for (const field of hexFields) {
-      const value = requestBody[field];
-      if (value !== undefined) {
-        const hexColorRegex = /^#[0-9A-Fa-f]{6}$/;
-        if (!hexColorRegex.test(value)) {
-          return NextResponse.json({ 
-            error: `${field} must be a valid hex color format (#rrggbb)`,
-            code: `INVALID_${field.toUpperCase().replace(/Color/, '_COLOR')}` 
-          }, { status: 400 });
-        }
+    // Validate backgroundColor (hex color format)
+    if (backgroundColor !== undefined) {
+      const hexColorRegex = /^#[0-9A-Fa-f]{6}$/;
+      if (!hexColorRegex.test(backgroundColor)) {
+        return NextResponse.json({ 
+          error: "Background color must be a valid hex color format (#rrggbb)",
+          code: "INVALID_BACKGROUND_COLOR" 
+        }, { status: 400 });
       }
-    }
-
-    // Validate themePreset
-    if (themePreset !== undefined && !['default', 'green', 'purple', 'red', 'orange'].includes(themePreset)) {
-      return NextResponse.json({ 
-        error: "Theme preset must be one of: default, green, purple, red, orange",
-        code: "INVALID_THEME_PRESET" 
-      }, { status: 400 });
     }
 
     // Check if settings already exist
@@ -110,16 +86,15 @@ export async function POST(request: NextRequest) {
 
     if (existingSettings.length > 0) {
       // Update existing settings
-      const updateData = { updatedAt };
+      const updateData = {
+        updatedAt
+      };
 
       if (mode !== undefined) updateData.mode = mode;
       if (screenSize !== undefined) updateData.screenSize = screenSize;
       if (width !== undefined) updateData.width = width;
       if (height !== undefined) updateData.height = height;
       if (backgroundColor !== undefined) updateData.backgroundColor = backgroundColor;
-      if (primaryColor !== undefined) updateData.primaryColor = primaryColor;
-      if (cardPlaceholderColor !== undefined) updateData.cardPlaceholderColor = cardPlaceholderColor;
-      if (themePreset !== undefined) updateData.themePreset = themePreset;
 
       const updated = await db.update(appearanceSettings)
         .set(updateData)
@@ -135,9 +110,6 @@ export async function POST(request: NextRequest) {
         width: width || 1200,
         height: height || 800,
         backgroundColor: backgroundColor || '#ffffff',
-        primaryColor: primaryColor || '#3b82f6',
-        cardPlaceholderColor: cardPlaceholderColor || '#9ca3af',
-        themePreset: themePreset || 'default',
         updatedAt
       };
 

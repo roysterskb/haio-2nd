@@ -1,13 +1,32 @@
-/* Updated: 2025-10-02T20:52:23.887Z */
-/* Updated: 2025-10-02T19:20:08.638Z */
-/* Updated: 2025-10-02T19:20:01.261Z */
-/* Updated: 2025-10-02T19:19:43.841Z */
-/* Updated: 2025-10-02T18:59:15.955Z */
-/* Updated: 2025-10-02T18:59:11.419Z */
-/* Updated: 2025-10-02T17:36:17.541Z */
-/* Updated: 2025-10-02T17:28:12.274Z */
-/* Updated: 2025-10-02T16:06:06.303Z */
-/* Updated: 2025-10-02T16:01:17.320Z */
+/* Updated: 2025-10-02T02:21:44.143Z */
+/* Updated: 2025-10-01T06:11:29.772Z */
+/* Updated: 2025-10-01T06:07:53.343Z */
+/* Updated: 2025-09-30T04:01:42.834Z */
+/* Updated: 2025-09-29T22:39:28.256Z */
+/* Updated: 2025-09-29T22:22:33.978Z */
+/* Updated: 2025-09-29T22:22:29.166Z */
+/* Updated: 2025-09-29T22:06:33.284Z */
+/* Updated: 2025-09-29T22:06:28.708Z */
+/* Updated: 2025-09-29T21:50:34.676Z */
+/* Updated: 2025-09-29T21:34:34.078Z */
+/* Updated: 2025-09-29T21:18:33.438Z */
+/* Updated: 2025-09-29T21:18:29.236Z */
+/* Updated: 2025-09-29T20:52:35.888Z */
+/* Updated: 2025-09-29T20:52:31.399Z */
+/* Updated: 2025-09-29T20:36:36.357Z */
+/* Updated: 2025-09-29T20:20:38.423Z */
+/* Updated: 2025-09-29T20:18:35.109Z */
+/* Updated: 2025-09-29T20:18:30.781Z */
+/* Updated: 2025-09-29T20:02:33.968Z */
+/* Updated: 2025-09-29T20:02:29.501Z */
+/* Updated: 2025-09-29T19:45:37.930Z */
+/* Updated: 2025-09-29T19:45:33.759Z */
+/* Updated: 2025-09-29T19:19:15.132Z */
+/* Updated: 2025-09-29T06:55:35.138Z */
+/* Updated: 2025-09-29T06:39:37.113Z */
+/* Updated: 2025-09-29T06:23:40.501Z */
+/* Updated: 2025-09-28T17:35:13.499Z */
+/* Updated: 2025-09-28T15:15:14.945Z */
 /* Updated: 2025-09-28T02:13:55.834Z */
 /* Updated: 2025-09-28T02:02:36.198Z */
 /* Updated: 2025-09-27T23:32:34.256Z */
@@ -69,7 +88,7 @@
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
-  --card: oklch(0.98 0 0); /* Subtle off-white for light mode distinction */
+  --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -103,7 +122,7 @@
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
-  --card: oklch(0.25 0 0); /* Brighter than background for dark mode separation */
+  --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);

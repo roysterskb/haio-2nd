@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { 
   Settings2, 
+  CheckCircle, 
   AlertCircle, 
   Loader2, 
   Monitor, 
@@ -13,15 +14,16 @@ import {
   Database,  // Added
   Download,  // Added
   Upload,    // Added
-  CheckCircle // Add this for weather preview
+  MapPin
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Cloud, MapPin } from 'lucide-react';
+import { Cloud } from 'lucide-react';
 import { toast } from 'sonner'; // Assuming sonner is available as per project
 import { X } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { GasStations } from '@/components/dashboard/GasStations'; // Added import
 
 // Utility function
 const cn = (...classes) => classes.filter(Boolean).join(' ');
@@ -47,15 +49,8 @@ function hexToRgb(hex) {
   return { r, g, b };
 }
 
-function adjustColor(hex, amount) {
+function getLuminance(hex) {
   const rgb = hexToRgb(hex);
-  const newR = Math.max(0, Math.min(255, Math.round(rgb.r * (1 + amount / 100))));
-  const newG = Math.max(0, Math.min(255, Math.round(rgb.g * (1 + amount / 100))));
-  const newB = Math.max(0, Math.min(255, Math.round(rgb.b * (1 + amount / 100))));
-  return `#${((1 << 24) + (newR << 16) + (newG << 8) + newB).toString(16).slice(1)}`;
-}
-
-function getLuminance(rgb) {
   const [r, g, b] = [rgb.r / 255, rgb.g / 255, rgb.b / 255].map(c => {
     if (c <= 0.03928) return c / 12.92;
     return Math.pow((c + 0.055) / 1.055, 2.4);
@@ -323,6 +318,56 @@ const TabsContent = ({ value, children, activeTab, className = '' }) => {
 const SettingsPage = () => {
   const router = useRouter();
   
+  const [formData, setFormData] = useState({ url: '', token: '' }); // Remove if no longer needed
+  const [entityState, setEntityState] = useState(null as any); // Remove
+  const [isLoadingHa, setIsLoadingHa] = useState(true); // Remove
+  
+  const [backgroundColor, setBackgroundColor] = useState("#ffffff");
+  const [weatherProvider, setWeatherProvider] = useState("openweathermap");
+  const [weatherApiKey, setWeatherApiKey] = useState("");
+  const [weatherUnits, setWeatherUnits] = useState("imperial");
+  const [weatherLocation, setWeatherLocation] = useState({ lat: 0, lon: 0, city: '', country: '', zip: '32225' });
+  const [fetchedWeather, setFetchedWeather] = useState(null);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [isSavingAppearance, setIsSavingAppearance] = useState(false);
+  const [dbSize, setDbSize] = useState(0);        // Added
+  const [lastBackup, setLastBackup] = useState(null);  // Added
+  const [isLoadingBackup, setIsLoadingBackup] = useState(true);  // Added
+  const [file, setFile] = useState(null);         // Added
+  const [isImporting, setIsImporting] = useState(false); // Added
+  const [isFetchingWeather, setIsFetchingWeather] = useState(false); // Added
+  const [lastSaves, setLastSaves] = useState({
+    appearance: null as string | null,
+    // connections: null as string | null, // Remove
+    general: null as string | null,
+    notifications: null as string | null,
+    weather: null as string | null,
+    zipcode: null as string | null,
+    backup: null as string | null,
+    database: null as string | null  // Added
+  });
+
+  // Add database settings state
+  const [databaseSettings, setDatabaseSettings] = useState({
+    autoBackup: false,
+    queryLogging: false,
+    schemaValidation: true,
+    performanceMonitoring: false,
+    localPath: '/app/data/backups',
+    cloudPath: '',
+    preset: 'balanced'
+  });
+
+  // Add MCP settings state
+  const [mcpUrl, setMcpUrl] = useState('http://homeassistant.local:8123');
+  const [mcpToken, setMcpToken] = useState('');
+  const [isMcpConnected, setIsMcpConnected] = useState(false);
+  const [isLoadingMcp, setIsLoadingMcp] = useState(false);
+  const [isSavingMcp, setIsSavingMcp] = useState(false);
+  const [exposedEntities, setExposedEntities] = useState([]);
+
+  // Move the hooks inside the component
   const [appearanceSettings, setAppearanceSettings] = useState({
     mode: 'auto' as 'auto' | 'manual',
     screenSize: 'desktop' as 'mobile' | 'tablet' | 'desktop' | 'tv',
@@ -440,6 +485,93 @@ const SettingsPage = () => {
     }
   };
 
+  // Add loadMcpSettings function
+  const loadMcpSettings = async () => {
+    try {
+      const response = await fetch('/api/mcp-settings');
+      if (response.ok) {
+        const data = await response.json();
+        setMcpUrl(data.url || 'http://homeassistant.local:8123');
+        setMcpToken(data.token || '');
+        setIsMcpConnected(data.connected ?? false);
+        if (data.entities) {
+          setExposedEntities(data.entities);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load MCP settings:', error);
+    }
+  };
+
+  // Add testMcpConnection function
+  const testMcpConnection = async () => {
+    if (!mcpUrl || !mcpToken) {
+      toast.error('Enter Home Assistant URL and token');
+      return;
+    }
+
+    setIsLoadingMcp(true);
+    try {
+      const response = await fetch('/api/test-mcp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: mcpUrl, token: mcpToken })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setIsMcpConnected(true);
+        setExposedEntities(data.entities || []);
+        toast.success('MCP connection successful! Connected to Home Assistant.');
+        
+        // Auto-save connected status and entities after successful test
+        await saveMcpSettings(true);
+        
+        // Reload to ensure consistency
+        await loadMcpSettings();
+      } else {
+        const errorData = await response.json();
+        setIsMcpConnected(false);
+        toast.error(errorData.error || 'Connection failed');
+      }
+    } catch (error) {
+      setIsMcpConnected(false);
+      toast.error('Test failed: ' + error.message);
+    } finally {
+      setIsLoadingMcp(false);
+    }
+  };
+
+  // Add saveMcpSettings function
+  const saveMcpSettings = async (fullSave = false) => {
+    setIsSavingMcp(true);
+    try {
+      const bodyData = {
+        url: mcpUrl,
+        token: mcpToken,
+        ...(fullSave && { connected: isMcpConnected, entities: exposedEntities })
+      };
+      
+      const response = await fetch('/api/mcp-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyData)
+      });
+
+      if (response.ok) {
+        toast.success('MCP settings saved!');
+        setLastSaves(prev => ({ ...prev, mcp: new Date().toISOString() }));
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || 'Save failed');
+      }
+    } catch (error) {
+      toast.error('Save failed: ' + error.message);
+    } finally {
+      setIsSavingMcp(false);
+    }
+  };
+
   // Sync responsive when appearanceSettings changes
   React.useEffect(() => {
     responsive.setMode(appearanceSettings.mode);
@@ -450,9 +582,41 @@ const SettingsPage = () => {
     }
   }, [appearanceSettings]);
 
+  // Remove useEffect for HA connection data
+
+  // Added: Fetch backup data
+  const fetchBackupData = async () => {
+    try {
+      setIsLoadingBackup(true);
+      const [sizeRes, backupRes] = await Promise.all([
+        fetch('/api/db-size'),
+        fetch('/api/last-backup')
+      ]);
+      if (sizeRes.ok) {
+        setDbSize((await sizeRes.json()).size);
+      }
+      if (backupRes.ok) {
+        setLastBackup((await backupRes.json()).lastBackup);
+      }
+    } catch (error) {
+      console.error('Failed to fetch backup data:', error);
+    } finally {
+      setIsLoadingBackup(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchBackupData();  // Added
+  }, []);
+
   // Add useEffect to load database settings
   React.useEffect(() => {
     loadDatabaseSettings();
+  }, []);
+
+  // Add useEffect to load MCP settings
+  React.useEffect(() => {
+    loadMcpSettings();
   }, []);
 
   const updateMode = (value: 'auto' | 'manual') => {
@@ -480,25 +644,6 @@ const SettingsPage = () => {
   const onBackgroundChange = (color: string) => {
     setBackgroundColor(color);
     setAppearanceSettings(prev => ({ ...prev, backgroundColor: color }));
-    
-    // Dynamic card update
-    const bgLuminance = getLuminance(hexToRgb(color));
-    const cardAdjustment = bgLuminance > 0.5 ? -5 : 15;
-    const cardColor = adjustColor(color, cardAdjustment);
-    const root = document.documentElement;
-    root.style.setProperty('--card', cardColor);
-    root.style.setProperty('--popover', cardColor);
-    
-    // Dynamic muted update for placeholders
-    const mutedAdjustment = bgLuminance > 0.5 ? -10 : 10;
-    const mutedColor = adjustColor(color, mutedAdjustment);
-    root.style.setProperty('--muted', mutedColor);
-    root.style.setProperty('--secondary', mutedColor);
-    
-    const cardRgb = hexToRgb(cardColor);
-    const cardLuminance = getLuminance(cardRgb);
-    root.style.setProperty('--card-foreground', cardLuminance < 0.5 ? '#ffffff' : '#000000');
-    root.style.setProperty('--popover-foreground', cardLuminance < 0.5 ? '#ffffff' : '#000000');
   };
 
   const handleSaveAppearance = async () => {
@@ -554,6 +699,221 @@ const SettingsPage = () => {
       setIsSavingAppearance(false);
     }
   };
+
+  // Update the useEffect for loading to sync responsive after setting appearanceSettings
+  React.useEffect(() => {
+    const loadAllSettings = async () => {
+      try {
+        setIsLoadingSettings(true);
+        
+        // Load appearance settings
+        const appearanceResponse = await fetch('/api/appearance-settings');
+        if (appearanceResponse.ok) {
+          const appData = await appearanceResponse.json();
+          const appDataWithDefaults = {
+            ...appData,
+            mode: appData.mode || 'auto',
+            screenSize: appData.screenSize || 'desktop',
+            width: appData.width || 1200,
+            height: appData.height || 800,
+            backgroundColor: appData.backgroundColor || "#ffffff",
+            primaryColor: appData.primaryColor || "#3b82f6",
+            cardPlaceholderColor: appData.cardPlaceholderColor || "#9ca3af",
+            themePreset: appData.themePreset || "default"
+          };
+          setAppearanceSettings(appDataWithDefaults);
+          setBackgroundColor(appDataWithDefaults.backgroundColor);
+          
+          // Sync responsive after load (this will trigger the other useEffect)
+          toast.success("Loaded appearance settings!");
+          setOriginalColors({ ...appDataWithDefaults });
+        }
+        
+        // Load weather settings (keep existing logic)
+        const weatherResponse = await fetch('/api/weather-settings');
+        if (weatherResponse.ok) {
+          const settings = await weatherResponse.json();
+          if (settings) {
+            setWeatherProvider(settings.provider || "openweathermap");
+            setWeatherApiKey(settings.apiKey || "");
+            setWeatherUnits(settings.units || "imperial");
+            setWeatherLocation({
+              lat: settings.latitude || 0,
+              lon: settings.longitude || 0,
+              city: settings.city || '',
+              country: settings.country || '',
+              zip: settings.zip || '32225'
+            });
+            setDefaultFuelType(settings.defaultFuelType || 'all');
+          }
+        }
+      } catch (error) {
+        toast.error("Failed to load settings");
+      } finally {
+        setIsLoadingSettings(false);
+      }
+    };
+
+    loadAllSettings();
+  }, []);
+
+  // Function to fetch weather preview
+  const fetchWeatherPreview = async () => {
+    if (!weatherApiKey || !weatherLocation.lat || !weatherLocation.lon) {
+      setFetchedWeather(null);
+      return;
+    }
+
+    setIsFetchingWeather(true);
+    try {
+      const response = await fetch('/api/test-weather', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: weatherProvider,
+          apiKey: weatherApiKey,
+          lat: weatherLocation.lat,
+          lon: weatherLocation.lon,
+          units: weatherUnits
+        })
+      });
+
+      if (response.ok) {
+        const { data } = await response.json();
+        setFetchedWeather({
+          temperature: Math.round(data.main.temp),
+          condition: data.weather[0].description,
+          feelsLike: Math.round(data.main.feels_like),
+          humidity: data.main.humidity
+        });
+      } else {
+        const errorData = await response.json();
+        console.error('Weather fetch failed:', errorData.error || "Weather API failed");
+        setFetchedWeather(null);
+      }
+    } catch (error) {
+      console.error('Weather fetch error:', error);
+      setFetchedWeather(null);
+    } finally {
+      setIsFetchingWeather(false);
+    }
+  };
+
+  const handleSaveWeatherSettingsWithFuel = async () => {
+    if (!weatherLocation.lat || !weatherLocation.lon) {
+      toast.error("Set a valid location (via coordinates, ZIP, or detection) before saving");
+      return;
+    }
+
+    setIsSavingSettings(true);
+    try {
+      const response = await fetch('/api/weather-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: weatherProvider,
+          apiKey: weatherApiKey,
+          latitude: weatherLocation.lat,
+          longitude: weatherLocation.lon,
+          units: weatherUnits,
+          city: weatherLocation.city,
+          country: weatherLocation.country,
+          zip: weatherLocation.zip,
+          defaultFuelType: defaultFuelType
+        })
+      });
+
+      if (response.ok) {
+        const saved = await response.json();
+        toast.success("Weather settings saved successfully!");
+        setLastSaves(prev => ({ ...prev, weather: new Date().toISOString(), zipcode: new Date().toISOString() }));
+      } else {
+        const errorData = await response.json();
+        toast.error(errorData.error || "Failed to save settings");
+      }
+    } catch (error) {
+      toast.error("Save failed: " + error.message);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  // Added: Handle export
+  const handleExport = async () => {
+    try {
+      const res = await fetch('/api/backup');
+      if (!res.ok) {
+        throw new Error('Export failed');
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'backup.json';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success('Backup exported successfully!');
+      fetchBackupData();  // Update last backup
+    } catch (error) {
+      toast.error('Export failed: ' + error.message);
+    }
+  };
+
+  // Added: Handle file change
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+  };
+
+  // Added: Handle import
+  const handleImport = async () => {
+    if (!file) return;
+    setIsImporting(true);
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      const res = await fetch('/api/backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        const result = await res.json();
+        toast.success(`Import successful! ${JSON.stringify(result.importedCounts)}`);
+        setFile(null);
+        // Clear file input
+        const input = document.querySelector('input[type="file"]');
+        if (input) input.value = '';
+        fetchBackupData();  // Update data
+        setLastSaves(prev => ({ ...prev, backup: new Date().toISOString() }));
+      } else {
+        const err = await res.json();
+        toast.error(err.error || 'Import failed');
+      }
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        toast.error('Invalid JSON file');
+      } else {
+        toast.error('Import failed: ' + error.message);
+      }
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  React.useEffect(() => {
+    const root = document.documentElement;
+    const primaryColorValue = appearanceSettings.primaryColor || '#3b82f6';
+    const backgroundColorValue = appearanceSettings.backgroundColor || '#ffffff';
+    const cardPlaceholderValue = appearanceSettings.cardPlaceholderColor || '#9ca3af';
+    root.style.setProperty('--background', backgroundColorValue);
+    root.style.setProperty('--primary', primaryColorValue);
+    root.style.setProperty('--muted-foreground', cardPlaceholderValue);
+    root.style.setProperty('--secondary-foreground', cardPlaceholderValue);
+    const luminance = getLuminance(primaryColorValue);
+    root.style.setProperty('--primary-foreground', luminance < 0.5 ? '#ffffff' : '#000000');
+  }, [appearanceSettings.backgroundColor, appearanceSettings.primaryColor, appearanceSettings.cardPlaceholderColor]);
 
   // Add these states in the SettingsPage component, after existing states
   const [tables, setTables] = useState([]);
@@ -746,301 +1106,8 @@ const SettingsPage = () => {
     }
   };
 
-  // Added: Fetch backup data
-  const fetchBackupData = async () => {
-    try {
-      setIsLoadingBackup(true);
-      const [sizeRes, backupRes] = await Promise.all([
-        fetch('/api/db-size'),
-        fetch('/api/last-backup')
-      ]);
-      if (sizeRes.ok) {
-        setDbSize((await sizeRes.json()).size);
-      }
-      if (backupRes.ok) {
-        setLastBackup((await backupRes.json()).lastBackup);
-      }
-    } catch (error) {
-      console.error('Failed to fetch backup data:', error);
-    } finally {
-      setIsLoadingBackup(false);
-    }
-  };
-
-  React.useEffect(() => {
-    fetchBackupData();  // Added
-  }, []);
-
-  // Add these states in the SettingsPage component, after existing states
-  const [backgroundColor, setBackgroundColor] = useState("#ffffff");
-  const [weatherProvider, setWeatherProvider] = useState("openweathermap");
-  const [weatherApiKey, setWeatherApiKey] = useState("");
-  const [weatherUnits, setWeatherUnits] = useState("imperial");
-  const [weatherLocation, setWeatherLocation] = useState({ lat: 0, lon: 0, city: '', country: '', zip: '32225' });
-  const [fetchedWeather, setFetchedWeather] = useState(null);
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
-  const [isSavingSettings, setIsSavingSettings] = useState(false);
-  const [isSavingAppearance, setIsSavingAppearance] = useState(false);
-  const [dbSize, setDbSize] = useState(0);        
-  const [lastBackup, setLastBackup] = useState(null);  
-  const [isLoadingBackup, setIsLoadingBackup] = useState(true);  
-  const [file, setFile] = useState(null);         
-  const [isImporting, setIsImporting] = useState(false); 
-  const [isFetchingWeather, setIsFetchingWeather] = useState(false); 
-  const [lastSaves, setLastSaves] = useState({
-    appearance: null as string | null,
-    general: null as string | null,
-    notifications: null as string | null,
-    weather: null as string | null,
-    zipcode: null as string | null,
-    backup: null as string | null,
-    database: null as string | null  
-  });
-
-  // Add database settings state
-  const [databaseSettings, setDatabaseSettings] = useState({
-    autoBackup: false,
-    queryLogging: false,
-    schemaValidation: true,
-    performanceMonitoring: false,
-    localPath: '/app/data/backups',
-    cloudPath: '',
-    preset: 'balanced'
-  });
-
-  // Remove all HA related useEffects and functions: loadHaConnection, fetchEntityState, useEffect for haConnection, handleSaveConnection, handleTestConnection, getStatusIcon, getStatusBadge
-
-  // Keep other functions
-
-  React.useEffect(() => {
-    // Remove HA loading part
-    const loadAllSettings = async () => {
-      try {
-        setIsLoadingSettings(true);
-        
-        // Load appearance settings
-        const appearanceResponse = await fetch('/api/appearance-settings');
-        if (appearanceResponse.ok) {
-          const appData = await appearanceResponse.json();
-          const appDataWithDefaults = {
-            ...appData,
-            mode: appData.mode || 'auto',
-            screenSize: appData.screenSize || 'desktop',
-            width: appData.width || 1200,
-            height: appData.height || 800,
-            backgroundColor: appData.backgroundColor || "#ffffff",
-            primaryColor: appData.primaryColor || "#3b82f6",
-            cardPlaceholderColor: appData.cardPlaceholderColor || "#9ca3af",
-            themePreset: appData.themePreset || "default"
-          };
-          setAppearanceSettings(appDataWithDefaults);
-          setBackgroundColor(appDataWithDefaults.backgroundColor);
-          
-          // Sync responsive after load (this will trigger the other useEffect)
-          toast.success("Loaded appearance settings!");
-          setOriginalColors({ ...appDataWithDefaults });
-        }
-        
-        // Load weather settings (keep existing logic)
-        const weatherResponse = await fetch('/api/weather-settings');
-        if (weatherResponse.ok) {
-          const settings = await weatherResponse.json();
-          if (settings) {
-            setWeatherProvider(settings.provider || "openweathermap");
-            setWeatherApiKey(settings.apiKey || "");
-            setWeatherUnits(settings.units || "imperial");
-            setWeatherLocation({
-              lat: settings.latitude || 0,
-              lon: settings.longitude || 0,
-              city: settings.city || '',
-              country: settings.country || '',
-              zip: settings.zip || '32225'
-            });
-          }
-        }
-      } catch (error) {
-        toast.error("Failed to load settings");
-      } finally {
-        setIsLoadingSettings(false);
-      }
-    };
-
-    loadAllSettings();
-  }, []);
-
-  // In fetchWeatherPreview, remove HA dependency - always try to fetch if data is present
-
-  // In weather TabsContent, remove the haConnection.isConnected condition for the preview card
-  // Change to: {(isFetchingWeather || fetchedWeather) ? ( ... ) : null}
-
-  const fetchWeatherPreview = async () => {
-    if (!weatherApiKey || !weatherLocation.lat || !weatherLocation.lon) {
-      setFetchedWeather(null);
-      return;
-    }
-
-    setIsFetchingWeather(true);
-    try {
-      const response = await fetch('/api/test-weather', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider: weatherProvider,
-          apiKey: weatherApiKey,
-          lat: weatherLocation.lat,
-          lon: weatherLocation.lon,
-          units: weatherUnits
-        })
-      });
-
-      if (response.ok) {
-        const { data } = await response.json();
-        setFetchedWeather({
-          temperature: Math.round(data.main.temp),
-          condition: data.weather[0].description,
-          feelsLike: Math.round(data.main.feels_like),
-          humidity: data.main.humidity
-        });
-      } else {
-        const errorData = await response.json();
-        console.error('Weather fetch failed:', errorData.error || "Weather API failed");
-        setFetchedWeather(null);
-      }
-    } catch (error) {
-      console.error('Weather fetch error:', error);
-      setFetchedWeather(null);
-    } finally {
-      setIsFetchingWeather(false);
-    }
-  };
-
-  const handleSaveWeatherSettings = async () => {
-    if (!weatherLocation.lat || !weatherLocation.lon) {
-      toast.error("Set a valid location (via coordinates, ZIP, or detection) before saving");
-      return;
-    }
-
-    setIsSavingSettings(true);
-    try {
-      const response = await fetch('/api/weather-settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider: weatherProvider,
-          apiKey: weatherApiKey,
-          latitude: weatherLocation.lat,
-          longitude: weatherLocation.lon,
-          units: weatherUnits,
-          city: weatherLocation.city,
-          country: weatherLocation.country,
-          zip: weatherLocation.zip
-        })
-      });
-
-      if (response.ok) {
-        const saved = await response.json();
-        toast.success("Weather settings saved successfully!");
-        setLastSaves(prev => ({ ...prev, weather: new Date().toISOString(), zipcode: new Date().toISOString() }));
-      } else {
-        const errorData = await response.json();
-        toast.error(errorData.error || "Failed to save settings");
-      }
-    } catch (error) {
-      toast.error("Save failed: " + error.message);
-    } finally {
-      setIsSavingSettings(false);
-    }
-  };
-
-  // Added: Handle export
-  const handleExport = async () => {
-    try {
-      const res = await fetch('/api/backup');
-      if (!res.ok) {
-        throw new Error('Export failed');
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'backup.json';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('Backup exported successfully!');
-      fetchBackupData();  // Update last backup
-    } catch (error) {
-      toast.error('Export failed: ' + error.message);
-    }
-  };
-
-  // Added: Handle file change
-  const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-  };
-
-  // Added: Handle import
-  const handleImport = async () => {
-    if (!file) return;
-    setIsImporting(true);
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      const res = await fetch('/api/backup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (res.ok) {
-        const result = await res.json();
-        toast.success(`Import successful! ${JSON.stringify(result.importedCounts)}`);
-        setFile(null);
-        // Clear file input
-        const input = document.querySelector('input[type="file"]');
-        if (input) input.value = '';
-        fetchBackupData();  // Update data
-        setLastSaves(prev => ({ ...prev, backup: new Date().toISOString() }));
-      } else {
-        const err = await res.json();
-        toast.error(err.error || 'Import failed');
-      }
-    } catch (error) {
-      if (error instanceof SyntaxError) {
-        toast.error('Invalid JSON file');
-      } else {
-        toast.error('Import failed: ' + error.message);
-      }
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  React.useEffect(() => {
-    const root = document.documentElement;
-    const primaryColorValue = appearanceSettings.primaryColor || '#3b82f6';
-    const cardPlaceholderValue = appearanceSettings.cardPlaceholderColor || '#9ca3af';
-    
-    root.style.setProperty('--primary', primaryColorValue);
-    root.style.setProperty('--muted-foreground', cardPlaceholderValue);
-    root.style.setProperty('--secondary-foreground', cardPlaceholderValue);
-    
-    const luminance = getLuminance(hexToRgb(primaryColorValue));
-    root.style.setProperty('--primary-foreground', luminance < 0.5 ? '#ffffff' : '#000000');
-    
-    // Dynamic card background based on default or saved, but since bg not global, use a neutral base
-    const defaultBg = appearanceSettings.backgroundColor || '#ffffff';
-    const bgLuminance = getLuminance(hexToRgb(defaultBg));
-    const cardAdjustment = bgLuminance > 0.5 ? -5 : 15;
-    const cardColor = adjustColor(defaultBg, cardAdjustment);
-    root.style.setProperty('--card', cardColor);
-    root.style.setProperty('--popover', cardColor);
-    
-    const cardRgb = hexToRgb(cardColor);
-    const cardLuminance = getLuminance(cardRgb);
-    root.style.setProperty('--card-foreground', cardLuminance < 0.5 ? '#ffffff' : '#000000');
-    root.style.setProperty('--popover-foreground', cardLuminance < 0.5 ? '#ffffff' : '#000000');
-  }, [appearanceSettings.primaryColor, appearanceSettings.cardPlaceholderColor, appearanceSettings.backgroundColor]);
+  // Add state for fuel type
+  const [defaultFuelType, setDefaultFuelType] = useState('all');
 
   return (
     <div className="p-6 bg-background text-foreground min-h-screen">
@@ -1060,13 +1127,14 @@ const SettingsPage = () => {
       </div>
 
       <Tabs defaultValue="appearance" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="appearance">Appearance</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="weather">Weather</TabsTrigger>
           <TabsTrigger value="zipcode">Zip Code</TabsTrigger>
           <TabsTrigger value="database">Database</TabsTrigger>
+          <TabsTrigger value="mcp">AI Connections</TabsTrigger>
         </TabsList>
 
         <TabsContent value="appearance" className="space-y-4">
@@ -1205,6 +1273,7 @@ const SettingsPage = () => {
                       // Update CSS vars
                       const root = document.documentElement;
                       root.style.setProperty('--primary', preset.primary);
+                      root.style.setProperty('--background', preset.background);
                       root.style.setProperty('--muted-foreground', preset.cardPlaceholder);
                       root.style.setProperty('--secondary-foreground', preset.cardPlaceholder);
                       const l = getLuminance(preset.primary);
@@ -1263,6 +1332,7 @@ const SettingsPage = () => {
                       onChange={(e) => {
                         const color = e.target.value;
                         setAppearanceSettings(prev => ({ ...prev, backgroundColor: color }));
+                        document.documentElement.style.setProperty('--background', color);
                         
                         if (originalColors && e.target.value !== originalColors.backgroundColor) {
                           if (timers.current.backgroundColor) clearTimeout(timers.current.backgroundColor);
@@ -1282,11 +1352,8 @@ const SettingsPage = () => {
                       onChange={(e) => {
                         const color = e.target.value;
                         setAppearanceSettings(prev => ({ ...prev, cardPlaceholderColor: color }));
-                        
-                        // Fix: Set --muted for placeholder backgrounds, not foreground
-                        document.documentElement.style.setProperty('--muted', color);
-                        document.documentElement.style.setProperty('--secondary', color);
-                        document.documentElement.style.setProperty('--accent', color);
+                        document.documentElement.style.setProperty('--muted-foreground', color);
+                        document.documentElement.style.setProperty('--secondary-foreground', color);
                         
                         if (originalColors && e.target.value !== originalColors.cardPlaceholderColor) {
                           if (timers.current.cardPlaceholderColor) clearTimeout(timers.current.cardPlaceholderColor);
@@ -1297,38 +1364,6 @@ const SettingsPage = () => {
                       }}
                       className="w-full h-12"
                     />
-                    
-                    <div className="flex gap-2 pt-2">
-                      {[
-                        { color: '#f8fafc', label: 'Light Gray' },
-                        { color: '#e2e8f0', label: 'Cool Gray' },
-                        { color: '#9ca3af', label: 'Neutral' },
-                        { color: '#6b7280', label: 'Medium Gray' },
-                        { color: '#374151', label: 'Dark Gray' },
-                        { color: '#dbeafe', label: 'Light Blue' },
-                        { color: '#bfdbfe', label: 'Blue' },
-                        { color: '#60a5fa', label: 'Sky Blue' },
-                        { color: '#3b82f6', label: 'Blue Primary' },
-                        { color: '#1e40af', label: 'Dark Blue' }
-                      ].map(({ color, label }) => (
-                        <button
-                          key={color}
-                          type="button"
-                          className="w-8 h-8 rounded border-2 border-transparent hover:border-ring focus:border-ring focus:outline-none transition-colors"
-                          style={{ backgroundColor: color }}
-                          onClick={() => {
-                            const input = document.querySelector('input[type="color"]') as HTMLInputElement;
-                            if (input) {
-                              input.value = color;
-                              input.dispatchEvent(new Event('change', { bubbles: true }));
-                            }
-                          }}
-                          title={label}
-                          aria-label={label}
-                        />
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">Click a swatch to quickly select a palette color for card placeholders.</p>
                   </div>
                 </div>
 
@@ -1401,7 +1436,8 @@ const SettingsPage = () => {
                       });
                       setBackgroundColor("#ffffff");
                       const root = document.documentElement;
-                      root.style.setProperty('--card', '#ffffff'); // Keep for cards, but since bg default, ok
+                      root.style.setProperty('--background', '#ffffff');
+                      root.style.setProperty('--card', '#ffffff');
                       root.style.setProperty('--primary', '#3b82f6');
                       root.style.setProperty('--muted-foreground', '#9ca3af');
                       root.style.setProperty('--secondary-foreground', '#9ca3af');
@@ -1427,7 +1463,7 @@ const SettingsPage = () => {
                   </Button>
                 </div>
                 <div className="mt-4 pt-4 border-t border-border text-xs text-muted-foreground">
-                  <p><strong>Appearance Last saved:</strong> {lastSaves.appearance ? formatDate(lastSaves.appearance) : 'Never'}</p>
+                  <p><strong>Appearance Last Backup Last saved file:</strong> {lastSaves.appearance ? formatDate(lastSaves.appearance) : 'Never'}</p>
                 </div>
               </div>
             </CardContent>
@@ -1443,7 +1479,7 @@ const SettingsPage = () => {
             <CardContent>
               <p className="text-muted-foreground">General settings will be available in future updates.</p>
               <div className="pt-4 border-t border-border text-xs text-muted-foreground">
-                <p><strong>General Last saved:</strong> {lastSaves.general ? formatDate(lastSaves.general) : 'Never'}</p>
+                <p><strong>General Last Backup Last saved file:</strong> {lastSaves.general ? formatDate(lastSaves.general) : 'Never'}</p>
               </div>
             </CardContent>
           </Card>
@@ -1458,7 +1494,7 @@ const SettingsPage = () => {
             <CardContent>
               <p className="text-muted-foreground">Notification settings will be available in future updates.</p>
               <div className="pt-4 border-t border-border text-xs text-muted-foreground">
-                <p><strong>Notifications Last saved:</strong> {lastSaves.notifications ? formatDate(lastSaves.notifications) : 'Never'}</p>
+                <p><strong>Notifications Last Backup Last saved file:</strong> {lastSaves.notifications ? formatDate(lastSaves.notifications) : 'Never'}</p>
               </div>
             </CardContent>
           </Card>
@@ -1523,14 +1559,7 @@ const SettingsPage = () => {
                     </div>
 
                     <Button
-                      onClick={async () => {
-                        await fetchWeatherPreview();
-                        if (fetchedWeather) {
-                          toast.success("Weather API test successful!");
-                        } else {
-                          toast.error("Weather API test failed");
-                        }
-                      }}
+                      onClick={fetchWeatherPreview}
                       disabled={!weatherApiKey || !weatherLocation.lat || !weatherLocation.lon || isFetchingWeather}
                       className="w-full"
                     >
@@ -1547,7 +1576,7 @@ const SettingsPage = () => {
                       )}
                     </Button>
 
-                    {(isFetchingWeather || fetchedWeather) ? (
+                    {(isFetchingWeather || fetchedWeather) && (
                       <Card className={cn("bg-green-50 border-green-200", isFetchingWeather && "bg-muted")}>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm font-medium text-green-800 flex items-center gap-2">
@@ -1577,10 +1606,10 @@ const SettingsPage = () => {
                           )}
                         </CardContent>
                       </Card>
-                    ) : null}
+                    )}
 
                     <Button
-                      onClick={handleSaveWeatherSettings}
+                      onClick={handleSaveWeatherSettingsWithFuel}
                       disabled={isSavingSettings || !weatherLocation.lat || !weatherLocation.lon}
                       className="w-full"
                     >
@@ -1722,6 +1751,41 @@ const SettingsPage = () => {
                   </Button>
                 </div>
               </div>
+              <div className="space-y-4 mt-4 pt-4 border-t border-border">
+                <h4 className="font-medium">Gas Station Preferences</h4>
+                <div className="space-y-2">
+                  <Label>Default Fuel Type</Label>
+                  <Select value={defaultFuelType} onValueChange={setDefaultFuelType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="regular">Regular</SelectItem>
+                      <SelectItem value="premium">Premium</SelectItem>
+                      <SelectItem value="diesel">Diesel</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">Choose your preferred gas type for searches in the dashboard.</p>
+                </div>
+                <Button
+                  onClick={handleSaveWeatherSettingsWithFuel}
+                  disabled={isSavingSettings || !weatherLocation.lat || !weatherLocation.lon}
+                  className="w-full"
+                >
+                  {isSavingSettings ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Save Location & Gas Preferences
+                    </>
+                  )}
+                </Button>
+              </div>
               <Button
                 variant="outline"
                 onClick={() => {
@@ -1747,7 +1811,7 @@ const SettingsPage = () => {
                 Detect My Location
               </Button>
               <Button
-                onClick={handleSaveWeatherSettings}
+                onClick={handleSaveWeatherSettingsWithFuel}
                 disabled={isSavingSettings || !weatherLocation.lat || !weatherLocation.lon}
                 className="w-full"
               >
@@ -1765,10 +1829,12 @@ const SettingsPage = () => {
               </Button>
 
               <div className="pt-4 border-t border-border text-xs text-muted-foreground">
-                <p><strong>Zip Code Last saved:</strong> {lastSaves.zipcode ? formatDate(lastSaves.zipcode) : 'Never'}</p>
+                <p><strong>Zip Code Last Backup Last saved file:</strong> {lastSaves.zipcode ? formatDate(lastSaves.zipcode) : 'Never'}</p>
               </div>
             </CardContent>
           </Card>
+
+          <GasStations className="min-h-[300px]" defaultFuelType={defaultFuelType} initialZip={weatherLocation.zip || '32277'} />
         </TabsContent>
 
         <TabsContent value="database" className="space-y-4">
@@ -2290,6 +2356,134 @@ const SettingsPage = () => {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="mcp" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings2 className="h-5 w-5" />
+                AI Connections (MCP)
+              </CardTitle>
+              <CardDescription>
+                Configure Model Context Protocol integration for AI automation with Home Assistant.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <h4 className="font-medium">Home Assistant MCP Server</h4>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="mcp-url">Home Assistant URL</Label>
+                    <Input
+                      id="mcp-url"
+                      type="url"
+                      placeholder="http://homeassistant.local:8123"
+                      value={mcpUrl}
+                      onChange={(e) => setMcpUrl(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="mcp-token">Long-Lived Access Token</Label>
+                    <Input
+                      id="mcp-token"
+                      type="password"
+                      placeholder="Your HA long-lived access token"
+                      value={mcpToken}
+                      onChange={(e) => setMcpToken(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    onClick={testMcpConnection}
+                    disabled={isLoadingMcp || !mcpUrl || !mcpToken}
+                    className="w-full"
+                  >
+                    {isLoadingMcp ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Testing Connection...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Test MCP Connection
+                      </>
+                    )}
+                  </Button>
+                  {isMcpConnected && (
+                    <Alert className="bg-green-50 border-green-200">
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <div>
+                        <p className="text-sm font-medium text-green-800">Connected Successfully!</p>
+                        <p className="text-sm text-green-700">
+                          Exposed Entities: {exposedEntities.length} available for AI control.
+                        </p>
+                        {exposedEntities.length > 0 && (
+                          <ul className="mt-1 text-xs text-green-600">
+                            {exposedEntities.slice(0, 5).map((entity, i) => (
+                              <li key={i}>{entity.entity_id}</li>
+                            ))}
+                            {exposedEntities.length > 5 && <li>...</li>}
+                          </ul>
+                        )}
+                      </div>
+                    </Alert>
+                  )}
+                  {!isMcpConnected && mcpUrl && mcpToken && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <p className="text-sm">Connection not established. Check URL and token.</p>
+                    </Alert>
+                  )}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  <p>Once connected, AI agents (like Claude Desktop) can query and control your Home Assistant entities via MCP.</p>
+                  <p className="mt-1">See <a href="https://www.home-assistant.io/integrations/mcp_server/" target="_blank" className="text-primary hover:underline">Home Assistant MCP Docs</a> for setup.</p>
+                </div>
+              </div>
+              <div className="pt-4 border-t border-border">
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    onClick={() => saveMcpSettings(true)}
+                    disabled={isSavingMcp || !mcpUrl || !mcpToken}
+                    className="flex-1"
+                  >
+                    {isSavingMcp ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Save MCP Settings
+                      </>
+                    )}
+                  </Button>
+                  {isMcpConnected && (
+                    <Button
+                      variant="outline"
+                      onClick={testMcpConnection}
+                      disabled={isLoadingMcp}
+                      className="flex-1"
+                    >
+                      {isLoadingMcp ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Re-test
+                        </>
+                      ) : (
+                        'Re-test Connection'
+                      )}
+                    </Button>
+                  )}
+                </div>
+                <div className="mt-4 pt-4 border-t border-border text-xs text-muted-foreground">
+                  <p><strong>MCP Last saved:</strong> {lastSaves.mcp ? formatDate(lastSaves.mcp) : 'Never'}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
