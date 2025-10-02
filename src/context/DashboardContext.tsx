@@ -6,83 +6,63 @@ import type { DashboardData, Device } from '@/types/dashboard'
 import type { DashboardProviderValue } from './types' // Wait, no need, inline
 
 type DashboardProviderValue = DashboardData & {
-  updateDevice: (id: string, updates: Partial<Device>) => Promise<void>;
-  isLoadingWeather: boolean;
-  isLoadingDevices: boolean;
-  // remove isConnectedToHA
+  updateDevice: (id: string, updates: Partial<Device>) => void
 }
 
 const DashboardContext = createContext<DashboardProviderValue | null>(null)
 
 export function DashboardProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<DashboardData>(() => ({
-    devices: [],
-    recentActivity: generateMockData().recentActivity, // Keep mock for now
-    energyData: generateMockData().energyData,
-    systemStatus: generateMockData().systemStatus,
-    weather: { temperature: 0, condition: 'Loading...', humidity: 0, windSpeed: 0, visibility: 0, pressure: 0 } // Add default weather
-  }));
+  const [data, setData] = useState(() => generateMockData())
   const [weather, setWeather] = useState(data.weather);
   const [isLoadingWeather, setIsLoadingWeather] = useState(true);
-  const [isLoadingDevices, setIsLoadingDevices] = useState(true);
 
   useEffect(() => {
-    const initData = async () => {
-      // Fetch weather
-      const fetchWeather = async () => {
-        try {
-          setIsLoadingWeather(true);
-          const response = await fetch('/api/weather');
-          if (response.ok) {
-            const realWeather = await response.json();
-            setWeather(realWeather);
-            setData(prev => ({ ...prev, weather: realWeather }));
-          }
-        } catch (error) {
-          console.error('Weather fetch error:', error);
-        } finally {
-          setIsLoadingWeather(false);
+    const fetchWeather = async () => {
+      try {
+        setIsLoadingWeather(true);
+        const response = await fetch('/api/weather');
+        if (response.ok) {
+          const realWeather = await response.json();
+          setWeather(realWeather);
+          // Update full data
+          setData(prev => ({ ...prev, weather: realWeather }));
+        } else {
+          console.warn('Using mock weather data');
+          // Keep mock
         }
-      };
-      fetchWeather();
-
-      const interval = setInterval(fetchWeather, 3 * 60 * 1000);
-      return () => clearInterval(interval);
+      } catch (error) {
+        console.error('Weather fetch error:', error);
+        // Keep mock as fallback
+      } finally {
+        setIsLoadingWeather(false);
+      }
     };
 
-    // always use mock devices
-    setIsLoadingDevices(true);
-    const mockData = generateMockData();
-    setData(prev => ({ ...prev, devices: mockData.devices }));
-    setIsLoadingDevices(false);
+    fetchWeather();
 
-    initData(); // only weather
-
-    return () => {
-      // no pollInterval
-    };
+    // Refresh every 3 minutes
+    const interval = setInterval(fetchWeather, 3 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
-  const updateDevice = async (id: string, updates: Partial<Device>) => {
-    // Optimistic update
+  const updateDevice = (id: string, updates: Partial<Device>) => {
     setData(prev => ({
       ...prev,
       devices: prev.devices.map(device => 
         device.id === id ? { ...device, ...updates } : device
       )
-    }));
-
-    // just local
-    console.log('Device updated locally');
-  };
+    }))
+  }
 
   const value = {
-    ...data,
-    weather,
+    ...(data || {}),
+    devices: (data?.devices || []),
+    recentActivity: (data?.recentActivity || []),
+    systemStatus: (data?.systemStatus || []),
+    energyData: (data?.energyData || {}),
+    weather: weather,
     updateDevice,
-    isLoadingWeather,
-    isLoadingDevices,
-    // remove isConnectedToHA
+    isLoadingWeather
   };
 
   return (

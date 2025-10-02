@@ -5,59 +5,62 @@ import * as SliderPrimitive from "@radix-ui/react-slider"
 
 import { cn } from "@/lib/utils"
 
-function Slider({
-  className,
-  defaultValue,
-  value,
-  min = 0,
-  max = 100,
-  ...props
-}: React.ComponentProps<typeof SliderPrimitive.Root>) {
-  const _values = React.useMemo(
-    () =>
-      Array.isArray(value)
-        ? value
-        : Array.isArray(defaultValue)
-          ? defaultValue
-          : [min, max],
-    [value, defaultValue, min, max]
-  )
+const Slider = React.forwardRef<
+  React.ElementRef<typeof SliderPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root>
+>(({ className, value, defaultValue, min = 0, max = 100, step = 1, ...props }, ref) => {
+  const primitiveValue = React.useMemo(
+    () => value !== undefined ? Array.isArray(value) ? value : [value] : undefined,
+    [value]
+  );
+
+  const primitiveDefaultValue = React.useMemo(
+    () => defaultValue !== undefined ? Array.isArray(defaultValue) ? defaultValue : [defaultValue] : undefined,
+    [defaultValue]
+  );
+
+  const _values = React.useMemo(() => {
+    if (value !== undefined) {
+      return Array.isArray(value) ? value : [value];
+    }
+    if (defaultValue !== undefined) {
+      return Array.isArray(defaultValue) ? defaultValue : [defaultValue];
+    }
+    return [min];
+  }, [value, defaultValue, min]);
 
   return (
     <SliderPrimitive.Root
-      data-slot="slider"
-      defaultValue={defaultValue}
-      value={value}
+      ref={ref}
       min={min}
       max={max}
+      step={step}
+      value={primitiveValue}
+      defaultValue={primitiveDefaultValue}
       className={cn(
-        "relative flex w-full touch-none items-center select-none data-[disabled]:opacity-50 data-[orientation=vertical]:h-full data-[orientation=vertical]:min-h-44 data-[orientation=vertical]:w-auto data-[orientation=vertical]:flex-col",
+        "relative flex w-full touch-none select-none items-center",
         className
       )}
       {...props}
     >
-      <SliderPrimitive.Track
-        data-slot="slider-track"
-        className={cn(
-          "bg-muted relative grow overflow-hidden rounded-full data-[orientation=horizontal]:h-1.5 data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-1.5"
-        )}
-      >
-        <SliderPrimitive.Range
-          data-slot="slider-range"
-          className={cn(
-            "bg-primary absolute data-[orientation=horizontal]:h-full data-[orientation=vertical]:w-full"
-          )}
-        />
+      <SliderPrimitive.Track className={cn(
+        "relative h-1.5 w-full grow overflow-hidden rounded-full bg-muted",
+        "[&>*]:!bg-primary"
+      )}>
+        <SliderPrimitive.Range />
       </SliderPrimitive.Track>
-      {Array.from({ length: _values.length }, (_, index) => (
+      {_values.map((_, i) => (
         <SliderPrimitive.Thumb
-          data-slot="slider-thumb"
-          key={index}
-          className="border-primary bg-background ring-ring/50 block size-4 shrink-0 rounded-full border shadow-sm transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+          key={i}
+          className={cn(
+            "block size-4 rounded-full border border-primary ring-offset-background transition-shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
+            "shadow-lg hover:shadow-md focus-visible:shadow-xl"
+          )}
         />
       ))}
     </SliderPrimitive.Root>
-  )
-}
+  );
+});
+Slider.displayName = SliderPrimitive.Root.displayName;
 
 export { Slider }

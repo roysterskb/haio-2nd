@@ -1,46 +1,65 @@
 "use client"
 
-import { Volume2, MoreHorizontal, SkipBack, SkipForward, Pause, Music } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Play, Pause, SkipBack, SkipForward, Volume2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
+import { useState } from 'react';
 
-interface MusicPlayerProps {
-  className?: string;
-}
+export const MusicPlayer = ({ className = '' }: { className?: string }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [volume, setVolume] = useState(50);
+  const [progress, setProgress] = useState(30);
 
-export const MusicPlayer = ({ className }: MusicPlayerProps) => (
-  <div className={cn("border-2 border-primary/30 bg-card rounded-xl shadow-sm p-2 sm:p-4 flex flex-col min-h-[250px]", className)}>
-    <div className="flex items-center gap-2 sm:gap-3 mb-4">
-      <div className="w-8 h-8 sm:w-10 sm:h-10 bg-green-500 rounded-lg flex items-center justify-center">
-        <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-      </div>
-      <MoreHorizontal className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground ml-auto" />
-    </div>
-    
-    <div className="mb-4">
-      <p className="text-xs sm:text-sm font-medium mb-1 text-foreground leading-tight">Rainy day relaxing sound</p>
-      <p className="text-xs text-muted-foreground leading-tight">Currently playing</p>
-    </div>
-
-    <div className="flex-1 flex flex-col">
-      <div className="flex-1 w-full min-h-20 sm:min-h-32 bg-muted rounded-lg mb-3 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      </div>
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-xs text-muted-foreground">2:32</span>
-        <div className="flex-1 h-1 sm:h-1 bg-muted rounded-full">
-          <div className="w-1/3 h-full bg-primary rounded-full" />
+  return (
+    <div className={`bg-card rounded-lg p-4 border ${className}`}>
+      <div className="space-y-4">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-muted rounded-full mx-auto mb-2 flex items-center justify-center">
+            <span className="text-2xl font-bold">♪</span>
+          </div>
+          <h4 className="text-sm font-medium">Now Playing</h4>
+          <p className="text-xs text-muted-foreground">Track Title - Artist</p>
         </div>
-        <span className="text-xs text-muted-foreground">7:32</span>
-      </div>
-
-      <div className="flex items-center justify-center gap-4 mt-auto">
-        <SkipBack className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer" />
-        <button className="w-8 h-8 sm:w-10 sm:h-10 bg-primary rounded-full flex items-center justify-center hover:bg-primary/90 transition-colors">
-          <Pause className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
-        </button>
-        <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer" />
-        <Volume2 className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer" />
+        
+        <div className="flex items-center justify-center gap-4">
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <SkipBack className="h-4 w-4" />
+          </Button>
+          <Button 
+            size="icon" 
+            className="h-12 w-12 bg-primary"
+            onClick={() => setIsPlaying(!isPlaying)}
+          >
+            {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+          </Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8">
+            <SkipForward className="h-4 w-4" />
+          </Button>
+        </div>
+        
+        <div className="space-y-2">
+          <Slider 
+            value={[progress]} 
+            onValueChange={(values) => setProgress(values[0])} 
+            max={100}
+            className="w-full"
+          />
+          <div className="text-xs text-muted-foreground flex justify-between">
+            <span>0:30</span>
+            <span>3:45</span>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-between">
+          <Volume2 className="h-4 w-4" />
+          <Slider 
+            value={[volume]} 
+            onValueChange={(v) => setVolume(v[0])} 
+            max={100} 
+            className="w-20"
+          />
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};

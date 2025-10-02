@@ -1,33 +1,43 @@
 "use client"
 
-import { Download, Upload, MoreHorizontal, Wifi } from 'lucide-react';
+import { Wifi, Signal, Users } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-export const WiFiRouterStats = () => (
-  <div className="border-2 border-primary/30 bg-card rounded-xl p-2 sm:p-4 shadow-sm flex flex-col flex-1 min-h-[120px] sm:min-h-[150px]">
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
-      <h3 className="text-base sm:text-lg font-semibold text-foreground text-center sm:text-left">Tp-Link Wifi Router</h3>
-      <MoreHorizontal className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground ml-auto" />
-    </div>
-    
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center flex-1">
-      <div className="flex flex-col justify-center">
-        <p className="text-xl sm:text-2xl font-bold text-green-500 mb-1">162.68 Mbps</p>
-        <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-          <Download className="w-3 h-3" />
-          Download
-        </p>
-      </div>
-      <div className="flex flex-col justify-center">
-        <p className="text-xl sm:text-2xl font-bold text-orange-500 mb-1">198.53 Mbps</p>
-        <p className="text-xs text-muted-foreground flex items-center justify-center gap-1">
-          <Upload className="w-3 h-3" />
-          Upload
-        </p>
-      </div>
-      <div className="flex flex-col justify-center">
-        <p className="text-base sm:text-2xl font-bold mb-1 text-foreground">9ms</p>
-        <p className="text-xs text-muted-foreground">Idle Latency</p>
-      </div>
-    </div>
-  </div>
-);
+export const WiFiRouterStats = () => {
+  const stats = {
+    speed: '245 Mbps',
+    signal: 'Strong',
+    devices: 23,
+  };
+
+  return (
+    <Card className="w-full">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Wifi className="h-5 w-5" />
+          Router Status
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-muted-foreground">Speed</span>
+          <span className="text-lg font-bold">{stats.speed}</span>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-muted-foreground">Signal</span>
+          <div className="flex items-center gap-2">
+            <Signal className="h-4 w-4 text-green-500" />
+            <span className="text-lg font-bold">{stats.signal}</span>
+          </div>
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-sm text-muted-foreground">Devices</span>
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            <span className="text-lg font-bold">{stats.devices}</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};

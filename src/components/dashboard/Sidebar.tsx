@@ -10,15 +10,13 @@ import {
   Smartphone as SmartHome,
   Mic,
   X,
-  Settings,
-  Calendar 
+  Settings 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getSidebarClass } from '@/lib/dashboard-utils';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BarChart3 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -29,11 +27,6 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen, audioLevels, screenSize }) => {
   const router = useRouter();
-  const rooms = [
-    { id: 1, name: 'Living Room', devices: 4 },
-    { id: 2, name: 'Bedroom', devices: 2 },
-    { id: 3, name: 'Kitchen', devices: 3 }
-  ]; // Mock rooms data to fix getRooms error
 
   return (
     <div className={getSidebarClass(screenSize, sidebarOpen, cn)}>
@@ -55,15 +48,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen, a
             <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-full flex items-center justify-center flex-shrink-0">
               <Mic className="w-5 h-5 text-primary-foreground" />
             </div>
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">Hey Javis,</p>
-              <p className="text-sm text-muted-foreground">turn off all lights</p>
+              <p className="text-sm text-muted-foreground truncate">turn off all lights</p>
             </div>
+            <button 
+              onClick={() => router.push('/settings?tab=ai-connections')}
+              className="p-1 text-muted-foreground hover:text-foreground ml-auto"
+              title="Manage voice entities"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
           </div>
           
           {/* Audio Visualization */}
           <div className="flex items-end justify-center gap-1 h-16" suppressHydrationWarning={true}>
-            {audioLevels.map((level, i) => (
+            {(audioLevels || []).map((level, i) => (
               <div
                 key={i}
                 className="bg-gradient-to-t from-primary to-primary/80 rounded-full w-1 audio-bar"
@@ -77,43 +77,44 @@ export const Sidebar: React.FC<SidebarProps> = ({ sidebarOpen, setSidebarOpen, a
         </div>
 
         {/* My Rooms Section */}
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-card-foreground px-3">My Rooms</h3>
-          <div className="grid grid-cols-4 gap-2 p-1">
-            {rooms.slice(0, 3).map((room) => (
-              <Button
-                key={room.id}
-                variant="ghost"
-                size="sm"
-                className="h-12 p-0 justify-start text-sm rounded-md flex flex-col items-start gap-1 hover:bg-accent hover:text-accent-foreground"
-              >
-                <div className="w-full flex items-center justify-between">
-                  <span className="truncate">{room.name}</span>
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                </div>
-                <span className="text-xs text-muted-foreground truncate">
-                  {room.devices} devices
-                </span>
-              </Button>
-            ))}
-            
-            {/* + Add New Card - Original Only, Reverted to Standard Size */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-12 p-0 justify-start text-sm rounded-md flex flex-col items-start gap-1 hover:bg-accent hover:text-accent-foreground"
-            >
-              <div className="w-full flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Plus className="w-4 h-4 text-muted-foreground" />
-                  <span className="truncate">+ Add New</span>
-                </div>
-                <div className="w-2 h-2 rounded-full bg-primary" />
-              </div>
-              <span className="text-xs text-muted-foreground truncate">
-                Add a room
-              </span>
-            </Button>
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-4 text-foreground">My Rooms</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {/* Entrance */}
+            <div className="bg-card rounded-xl p-3 flex flex-col items-center cursor-pointer hover:bg-accent transition-colors">
+              <Home className="w-6 h-6 mb-2 text-muted-foreground" />
+              <p className="text-sm font-medium text-foreground">Entrance</p>
+            </div>
+
+            {/* Backyard */}
+            <div className="bg-card rounded-xl p-3 flex flex-col items-center cursor-pointer hover:bg-accent transition-colors">
+              <Home className="w-6 h-6 mb-2 text-muted-foreground" />
+              <p className="text-sm font-medium text-foreground">Backyard</p>
+            </div>
+
+            {/* Living Room */}
+            <div className="bg-card rounded-xl p-3 flex flex-col items-center cursor-pointer hover:bg-accent transition-colors">
+              <Home className="w-6 h-6 mb-2 text-muted-foreground" />
+              <p className="text-sm font-medium text-foreground">Living Room</p>
+            </div>
+
+            {/* Front Room */}
+            <div className="bg-card rounded-xl p-3 flex flex-col items-center cursor-pointer hover:bg-accent transition-colors">
+              <Home className="w-6 h-6 mb-2 text-muted-foreground" />
+              <p className="text-sm font-medium text-foreground">Front Room</p>
+            </div>
+
+            {/* My Workstation - Highlighted */}
+            <div className="bg-primary rounded-xl p-3 flex flex-col items-center cursor-pointer">
+              <Home className="w-6 h-6 mb-2 text-primary-foreground" />
+              <p className="text-sm font-medium text-primary-foreground">My Workstation</p>
+            </div>
+
+            {/* Add New Room */}
+            <button className="border-2 border-dashed border-border rounded-xl p-3 flex flex-col items-center hover:border-primary transition-colors">
+              <Plus className="w-6 h-6 text-muted-foreground" />
+              <p className="text-sm font-medium text-muted-foreground mt-1">Add new</p>
+            </button>
           </div>
         </div>
 

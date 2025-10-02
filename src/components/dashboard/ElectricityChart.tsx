@@ -1,71 +1,53 @@
-import { Zap, TrendingUp, TrendingDown, Calendar } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useDashboardData } from '@/hooks/useDashboardData';
+"use client"
 
-export function ElectricityChart() {
+import { useDashboardData } from '@/hooks/useDashboardData';
+import { BarChart3, Zap } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
+export const ElectricityChart = ({ className = '' }: { className?: string }) => {
   const { energyData } = useDashboardData();
 
-  const maxUsage = Math.max(...energyData.hourlyUsage);
-  
+  const labels = ['1AM', '2AM', '3AM', '4AM', '5AM', '6AM', '7AM', '8AM', '9AM', '10AM', '11AM', '12PM'];
+  const data = energyData.hourlyUsage.slice(0, 12);
+
   return (
-    <Card className="min-h-[150px] sm:min-h-[200px] shadow-sm border-2 border-primary/30">
-      <CardHeader className="pb-2 sm:pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-          <Zap className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />
-          Energy Usage
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="p-2 sm:p-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-2">
-          <h3 className="text-base sm:text-lg font-semibold text-foreground text-center sm:text-left">ELECTRICITY CONSUMED</h3>
-          <div className="flex items-center gap-2">
-            <Calendar className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground" />
-            <span className="text-xs sm:text-sm text-muted-foreground">Past 6 months</span>
-          </div>
+    <Card className={`w-full h-full ${className}`}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-2">
+          <Zap className="h-5 w-5" />
+          <CardTitle className="text-lg">Electricity Usage</CardTitle>
         </div>
-
-        <div className="flex-1 flex flex-col">
-          {/* Chart */}
-          <div className="h-24 sm:h-32 relative mb-4 flex">
-            {/* Y-axis labels - Now visible on mobile with adjusted width */}
-            <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-[10px] sm:text-xs text-muted-foreground w-4 sm:w-8 flex-shrink-0 pl-1 sm:pl-2">
-              <span className="text-left leading-none">100%</span>
-              <span className="text-left leading-none">75%</span>
-              <span className="text-left leading-none">50%</span>
-              <span className="text-left leading-none">25%</span>
-              <span className="text-left leading-none">0%</span>
-            </div>
-            <svg className="flex-1 h-full ml-4 sm:ml-8" viewBox="0 0 300 120">
-              <defs>
-                <linearGradient id="energyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.8" />
-                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.1" />
-                </linearGradient>
-              </defs>
-              <path
-                d="M 0 80 Q 50 60 100 70 T 200 60 T 300 50"
-                stroke="#3b82f6"
-                strokeWidth="2"
-                fill="none"
-              />
-              <path
-                d="M 0 80 Q 50 60 100 70 T 200 60 T 300 50 L 300 120 L 0 120 Z"
-                fill="url(#energyGradient)"
-              />
-            </svg>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="flex justify-between text-sm">
+            <span>Current: {energyData.current} kWh</span>
+            <span>Today: {energyData.today} kWh</span>
           </div>
-
-          {/* X-axis labels - Responsive spacing */}
-          <div className="flex justify-between text-xs text-muted-foreground px-2">
-            <span className="min-w-0 truncate">APR</span>
-            <span className="min-w-0 truncate">MAY</span>
-            <span className="min-w-0 truncate">JUN</span>
-            <span className="min-w-0 truncate">JUL</span>
-            <span className="min-w-0 truncate">AUG</span>
-            <span className="min-w-0 truncate">SEP</span>
+          
+          <div className="space-y-2">
+            <div className="flex justify-between text-xs text-muted-foreground">
+              {labels.map((label, i) => (
+                <span key={i}>{label}</span>
+              ))}
+            </div>
+            <div className="flex gap-1 h-20">
+              {(data || []).map((value, i) => (
+                <div 
+                  key={i} 
+                  className="flex-1 bg-primary/20 rounded-b" 
+                  style={{ height: `${(value / Math.max(...data, 1)) * 100}%` }}
+                />
+              ))}
+            </div>
+          </div>
+          
+          <div className="flex justify-between text-sm font-medium">
+            <span>Savings: {energyData.savings}%</span>
+            <span className="text-primary">View Details</span>
           </div>
         </div>
       </CardContent>
     </Card>
   );
-}
+};

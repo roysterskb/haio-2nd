@@ -1,43 +1,38 @@
 "use client"
 
-import { Camera, WifiOff } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Camera, Activity, Video } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
-interface CameraLiveFeedsProps {
-  className?: string;
-}
+export const CameraLiveFeeds = ({ className = '' }: { className?: string }) => {
+  const feeds = [
+    { id: 'front', name: 'Front Door', status: 'live' as const },
+    { id: 'back', name: 'Back Yard', status: 'live' as const },
+    { id: 'garage', name: 'Garage', status: 'offline' as const },
+  ];
 
-const mockCamera = {
-  id: 1,
-  name: 'Front Door',
-  status: 'online' as const,
-};
-
-export const CameraLiveFeeds = ({ className }: CameraLiveFeedsProps) => (
-  <div className={cn("border-2 border-primary/30 bg-card rounded-xl shadow-sm p-4 flex flex-col min-h-[125px] sm:min-h-[150px]", className)}>
-    <div className="flex items-center gap-2 mb-4">
-      <Camera className="w-5 h-5 text-blue-500" />
-      <h3 className="text-sm font-medium text-foreground">Live Camera Feed</h3>
-    </div>
-    
-    <div className="flex-1 relative">
-      <div className="w-full h-full bg-muted rounded-lg overflow-hidden">
-        { mockCamera.status === 'offline' ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <WifiOff className="w-6 h-6 text-destructive" />
+  return (
+    <div className={`bg-card rounded-lg p-4 border h-full ${className} flex flex-col`}>
+      <div className="flex items-center gap-2 mb-3">
+        <Camera className="h-4 w-4" />
+        <h3 className="text-sm font-medium">Live Feeds</h3>
+      </div>
+      <div className="space-y-3 flex-1">
+        {feeds.map((feed) => (
+          <div key={feed.id} className="flex items-center justify-between p-2 bg-muted/50 rounded">
+            <div className="flex items-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${feed.status === 'live' ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className="text-sm">{feed.name}</span>
+            </div>
+            <div className={`text-xs px-2 py-1 rounded-full ${feed.status === 'live' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
+              {feed.status}
+            </div>
           </div>
-        ) : (
-          <div className="absolute bottom-2 right-2 w-3 h-3 bg-green-500 rounded-full animate-pulse border-2 border-card" />
-        )}
+        ))}
       </div>
-      <div className="absolute bottom-2 left-2 text-xs text-background font-medium">
-        {mockCamera.name}
-      </div>
-      <span className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold ${
-        mockCamera.status === 'online' ? 'bg-green-500 text-background' : 'bg-destructive text-background'
-      }`}>
-        {mockCamera.status.toUpperCase()}
-      </span>
+      <Button variant="outline" size="sm" className="mt-2 w-full">
+        <Video className="mr-2 h-3 w-3" />
+        View All
+      </Button>
     </div>
-  </div>
-);
+  );
+};
